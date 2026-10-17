@@ -35,12 +35,19 @@ jobs:
       - name: Check the site is intact
         run: |
           test -f site/index.html || { echo "site/index.html is missing"; exit 1; }
-          # The page embeds its images as data URIs, so it is large by design;
-          # catch a truncated or placeholder file rather than publishing one.
           size=$(wc -c < site/index.html)
           echo "site/index.html is $size bytes"
-          [ "$size" -gt 100000 ] || { echo "index.html looks truncated"; exit 1; }
+          [ "$size" -gt 8000 ] || { echo "index.html looks truncated"; exit 1; }
           grep -q '<title>' site/index.html || { echo "no <title> in index.html"; exit 1; }
+          # The page references its images rather than embedding them, so a
+          # missing asset is a broken page rather than a build error.
+          miss=0
+          for f in $(grep -o 'src="[^"]*"' site/index.html | cut -d'"' -f2); do
+            case "$f" in data:*|http*) continue ;; esac
+            [ -f "site/$f" ] || { echo "missing asset: site/$f"; miss=1; }
+          done
+          [ "$miss" -eq 0 ] || exit 1
+          echo "all referenced assets present"
 
       - uses: actions/configure-pages@v5
 
