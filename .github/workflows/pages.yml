@@ -1,0 +1,52 @@
+# Publishes site/ to https://simonccc.github.io/m68/
+#
+# Requires Pages to be set to "GitHub Actions" as its source
+# (Settings -> Pages -> Build and deployment -> Source), or equivalently:
+#   gh api -X PUT repos/simonccc/m68/pages -f build_type=workflow
+name: Publish site
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'site/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Let a running deploy finish rather than cancelling it part-way.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the site is intact
+        run: |
+          test -f site/index.html || { echo "site/index.html is missing"; exit 1; }
+          # The page embeds its images as data URIs, so it is large by design;
+          # catch a truncated or placeholder file rather than publishing one.
+          size=$(wc -c < site/index.html)
+          echo "site/index.html is $size bytes"
+          [ "$size" -gt 100000 ] || { echo "index.html looks truncated"; exit 1; }
+          grep -q '<title>' site/index.html || { echo "no <title> in index.html"; exit 1; }
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - id: deploy
+        uses: actions/deploy-pages@v4
