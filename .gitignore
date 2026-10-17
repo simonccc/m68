@@ -1,0 +1,6 @@
+# Extracted squashfs rootfs (partition 4) — ~460 MB, re-extract from the image
+squash/
+
+# Local scratch
+*.img
+*.sqfs
