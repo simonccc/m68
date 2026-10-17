@@ -318,3 +318,48 @@ When you want real titles, correct cores, search keys and preview videos, build
   launches. Unexamined — possibly the richer menu from a sibling model.
 - `/sdcard/w20c/minigui/retroarch_hdmi.cfg` is written by the button-remap screen;
   that path does not exist in this firmware's layout.
+
+## Overriding the launcher — `tools/make_test_launcher.sh`
+
+Writes `/sdcard/test/` onto a mounted card so `S50ui` runs our script instead of
+`/usr/bin/game`. Nothing in the read-only rootfs changes; deleting the directory
+(or creating `/sdcard/test/DISABLE`) restores stock.
+
+```
+make_test_launcher.sh [-t lvui|game|retroarch|shell] [-n] /Volumes/SDCARD
+```
+
+The generated `test.sh` logs every boot to `/sdcard/test/test.log` (the only way
+to see anything without a serial cable), and a watchdog hands back to
+`/usr/bin/game` if the chosen target dies within 15s, so a failed experiment
+cannot leave a black screen with no way in. `-n` disables that.
+
+It also undoes two things `S50ui` sets wrongly for us:
+
+- `LD_LIBRARY_PATH=LD_LIBRARY_PATH:/sdcard/test/lib` — missing the `$`, so the
+  stock value is replaced by a literal string
+- `MG_CFG_PATH=/sdcard/test` — no `MiniGUI.cfg` lives there, so any MiniGUI app
+  started from `test.sh` must have it reset to `/usr/local/share/minigui/hdmicfg`
+
+### On `lvui`
+
+`/usr/bin/lvui` is a 10 MB LVGL (v7-era) binary that nothing in the firmware ever
+launches. It links `libsqlite3 libasound libstdc++` — **no MiniGUI** — and draws to
+`/dev/fb0` directly rather than through DRM/KMS like `game` does.
+
+It is a leftover from a sibling handheld, not a hidden menu for this box:
+
+- it reads `/proc/ov7251` (an OmniVision camera sensor the M68 does not have)
+- its resources live in `/sdcard/minigui/res/...` and
+  `/usr/local/share/lvgl/{picture,game,music,video}/` — of which this rootfs ships
+  exactly one file, `picture/nosdbg.png`
+- it has music, video, photo and camera apps alongside the game launcher
+  (`/sdcard/music`, `/sdcard/video`, `/sdcard/pic`, `/sdcard/historical`,
+  `/sdcard/collection`, `/data/qrcode.bmp`)
+- it looks for `/sdcard/database.sqlite3` and `/sdcard/games.db` as well as the
+  familiar `/sdcard/game/games.db`
+
+So expect it to come up blank. The `lvui` target stages
+`/usr/local/share/minigui/res` to `/sdcard/minigui/res` (where it looks) before
+starting, which is the one piece we can supply; the LVGL artwork is simply absent
+and would have to come from a sibling model's firmware.
