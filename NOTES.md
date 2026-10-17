@@ -317,6 +317,18 @@ When you want real titles, correct cores, search keys and preview videos, build
 - `/sdcard/w20c/minigui/retroarch_hdmi.cfg` is written by the button-remap screen;
   that path does not exist in this firmware's layout.
 
+## `site/`
+
+A standalone, offline HTML guide to the M66/M68 aimed at buyers rather than at
+this teardown. Everything about the M66 in it is transcribed from the
+manufacturer listing; the "Inside the M68" section is the only first-hand part
+and is derived from this repository.
+
+The useful conclusion it records: **SJGAM's own site has no M68.** The page the
+device is sold under describes the M66 — Amlogic-class, Mali-G52, EmuELEC 4.3 —
+and the firmware here is none of those things. The two names are not two
+revisions of one product.
+
 ## Overriding the launcher — `tools/make_test_launcher.sh`
 
 Writes `/sdcard/test/` onto a mounted card so `S50ui` runs our script instead of

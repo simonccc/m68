@@ -4,3 +4,4 @@ squash/
 # Local scratch
 *.img
 *.sqfs
+.DS_Store
