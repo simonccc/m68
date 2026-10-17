@@ -306,14 +306,12 @@ When you want real titles, correct cores, search keys and preview videos, build
 
 ## Loose ends
 
-- `/etc/webster` is an encrypted blob; `game` decrypts it to `/tmp/webb.sh`,
-  `chmod +x`, and runs `/tmp/webb.sh <int> "<s>" "<s>" "<s>"`. Also reads
-  `/proc/version` into `/tmp/msg` and the Rockchip eFuse. Not yet decoded.
-  A custom base64 alphabet `abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ8923456701+/`
-  sits in `.rodata` and is probably part of it.
 - `/proc/secic` — challenge/response against a security chip: writes 32 bytes,
   sleeps 15 ms, reads 32 back. Returns 0 if the node is absent, so it is probably
   not a hard gate, but check before rebuilding the rootfs.
+- A custom base64 alphabet
+  `abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ8923456701+/` sits in
+  `.rodata`, unreferenced by anything found so far.
 - `/usr/bin/lvui` (10 MB, LVGL) is a second, much larger UI that `S50ui` never
   launches. Unexamined — possibly the richer menu from a sibling model.
 - `/sdcard/w20c/minigui/retroarch_hdmi.cfg` is written by the button-remap screen;
@@ -363,3 +361,94 @@ So expect it to come up blank. The `lvui` target stages
 `/usr/local/share/minigui/res` to `/sdcard/minigui/res` (where it looks) before
 starting, which is the one piece we can supply; the LVGL artwork is simply absent
 and would have to come from a sibling model's firmware.
+
+## `/etc/webster` — decrypted
+
+A 4986-byte encrypted blob. `game` decrypts it to `/tmp/webb.sh`, `chmod +x`'s it
+and runs `/tmp/webb.sh <type> "<appendcfg>" "<rom>" "<arg4>"` — an alternative to
+`start_game.sh`. `tools/webster.py` does the same offline; the plaintext is
+committed as `webster-decrypted.sh`.
+
+**It is an older copy of `start_game.sh` that loads its configs and cores from
+the SD card instead of the rootfs** (`GAME_CFG=//sdcard/minigui/gbx66.cfg`,
+`-L //sdcard/minigui/retro_lib/$GAME_LIB`). It stops at `game_type 36`, so it
+predates the `fmsx`/`picodrive`/`a5200`/`handy`/`pokemini`/`supergrafx` entries
+(37–46). Note the doubled slash: it expects `XDG_CONFIG_HOME=/sdcard` to be
+prefixed. Nothing else in the firmware references `/sdcard/minigui/retro_lib`.
+
+### The cipher
+
+Keyed off three things that are all meant to be untouched on a genuine unit:
+
+```
+sum    = sum of every byte of the first two lines of /etc/version
+a-b-c/d = the third line, parsed as "%d-%d-%d/%d"   (date / hour)
+klen   = (sum % 64) + d
+size   = klen + 512
+offset = (b*c*d + a) % (len(/etc/init.d/S50ui) - klen - 512)
+key    = the text between the first '(' and the next ')' in /proc/version
+
+block[j] = S50ui[offset + j] ^ key[j % len(key)]        for j < size
+plain[i] = ((cipher[i] - klen) & 0xff) ^ block[i % size]
+```
+
+So the keystream is **a window of the S50ui shell script itself**, XORed with the
+kernel builder's `user@host`. Editing `S50ui`, editing `/etc/version`, or booting
+a kernel built elsewhere all silently corrupt the output. That is the point — it
+is a tamper check, not a secret.
+
+It is also why the `/sdcard/test` override in `tools/make_test_launcher.sh` is the
+safe way in: it changes nothing that this derivation reads.
+
+### Recovered parameters
+
+| | |
+|---|---|
+| size | 582 |
+| subtracted byte (`klen`) | 70 |
+| S50ui offset | 2215 |
+| `/proc/version` key | `Percival@dell-build-sz-35` (25 bytes) |
+
+Re-encrypting the decrypted script with these reproduces `/etc/webster` byte for
+byte, and the recovered keystream repeats with a clean period of 25 across all
+582 bytes — which also proves the `S50ui` in this rootfs is byte-identical to the
+one on the vendor's build machine.
+
+### …but this firmware cannot decrypt it
+
+The shipped `/etc/version` is `M68\nV1.0.0\n2026-01-22/14:50\n`: sum 530,
+`sum % 64` = 18, `d` = 14. That gives `klen` 32, `size` 544, `offset` 11 — not the
+582/2215 the blob actually needs. `tools/webster.py params` prints the mismatch.
+
+`klen = 70` needs `(sum % 64) + d == 70`, so the blob was built against a
+different `/etc/version` (a different model string, version string or build
+timestamp). **`/etc/webster` is stale**: on this unit it would decrypt to noise,
+get `chmod +x`'d, and fail to run.
+
+### Dead code anyway
+
+Three functions are involved and **none of them is reachable** — no `bl` targets
+them and their addresses appear nowhere as data:
+
+| Address | What it does |
+|---|---|
+| `0x2a898` | the decryption above, writes `/tmp/webb.sh` |
+| `0x2aca0` | calls it, then `system("/tmp/webb.sh %d \"%s\" \"%s\" \"%s\"")` |
+| `0x2abcc` | the eFuse check below |
+
+The live launcher path is `enterGame` at `0x18d40`, which calls
+`/usr/local/share/minigui/start_game.sh` with three arguments.
+
+### The eFuse check (`0x2abcc`, also dead)
+
+```c
+fd = open("/sys/bus/nvmem/devices/rockchip-efuse0/nvmem", O_RDONLY);
+if (fd < 0)                 system("poweroff");
+if (lseek(fd, 7, SEEK_SET) < 0) system("poweroff");
+read(fd, buf, 2);
+if (buf[0] != 'C' && buf[1] != 'X') system("poweroff");
+```
+
+Two bytes at offset 7 of the Rockchip eFuse must contain `'C'` or `'X'` — note it
+is an OR, and `system("poweroff")` does not abort, so control falls through
+either way. An anti-clone measure that was wired up and then disconnected.
