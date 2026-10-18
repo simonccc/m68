@@ -1,22 +1,18 @@
-# SJGAM M68 — firmware teardown
+# M68 mini retro console
 
 Notes and tooling from reading the SD card of an **SJGAM M68** retro TV game stick
 (build `M68 V1.0.0`, 22 January 2026).
 
 <img src="site/assets/product-2.jpg" alt="The SJGAM M68 game stick with its red and blue wireless controllers" width="520">
 
-📖 **Write-up: [simonccc.github.io/m68](https://simonccc.github.io/m68/)** — the same
-material as a readable page.
-
 ---
 
-## The short version
+## History
 
-The device is sold under SJGAM's **M66** product page, which specifies an
-Amlogic-class SoC with Mali-G52 graphics running **EmuELEC 4.3**. The card contains
-none of that. SJGAM's site lists no M68 at all.
+It looks like a clone of SJGAM's **M66** product page, which specifies an
+Amlogic-class SoC with Mali-G52 graphics running **EmuELEC 4.3**. 
 
-| | Listed (M66) | Actually on the card (M68) |
+| | (M66) | (M68) |
 |---|---|---|
 | CPU | Amlogic-class, Mali-G52 MC2 | **Rockchip, 32-bit ARM Cortex-A7** |
 | OS | EmuELEC 4.3 | **Buildroot 2018.02-rc3**, BusyBox init |
@@ -57,9 +53,6 @@ tools/                        see below
 site/                         the write-up, deployed to GitHub Pages
 squash/                       extracted root filesystem (gitignored — ~460 MB)
 ```
-
-`squash/` is not committed. Extract partition 4 of the card into it; the tools expect
-it at that path (or pass `--root`).
 
 ## Tools
 
@@ -150,15 +143,6 @@ the rootfs (the UI still draws at 720p and is scaled). Tried on one unit: 1080p 
 up, with some flicker and no visible gain, since everything on screen is upscaled
 anyway. Delete `/sdcard/test` to go back.
 
-## Scope
-
-One unit, one firmware build. Everything here was read from that card or disassembled
-from its launcher binary; any M66 specification and the product photographs are
-manufacturer-published and not independently verified. Other M68 batches may differ —
-corrections welcome.
-
-Independent research, not affiliated with or endorsed by SJGAM. No ROMs, copyrighted
-game data or firmware images are distributed here.
 
 ## Licence
 
@@ -167,13 +151,6 @@ The work in this repository is [MIT licensed](LICENSE) — `tools/`, `NOTES.md`,
 
 The MIT grant does **not** extend to the material that came off the device or from
 the manufacturer, which is included for reference and remains their rights holders':
-
-| Path | What it is |
-|---|---|
-| `games.db`, `games_scanf.db`, `games_fav.db` | databases from the device |
-| `webster-decrypted.sh` | decrypted vendor script |
-| `site/assets/*.jpg` | manufacturer product photographs |
-| `site/research/manufacturer-source.html` | snapshot of the SJGAM listing |
 
 No reuse licence was established for any of those. Attribution does not grant
 permission for redistribution.
