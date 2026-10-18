@@ -19,6 +19,40 @@ Not EmuELEC/Amlogic (the vendor page for the M66 is misleading). This is:
 Partition 4 = squashfs rootfs (read-only). `/sdcard` is a separate partition
 mounted at boot; everything user-facing lives there.
 
+## The manufacturer listing — what the box claims
+
+**SJGAM's own site has no M68.** Enumerating every product ID on it returns
+M5, M8, M9, M15, M17, M18, M26, M27, M28, M30, M31, M66 and M88. The page this
+device is sold under is the **M66**, "PS1 TV Video Game Stick", whose published
+parameters are:
+
+| | Listed for the M66 |
+|---|---|
+| CPU | Quad-core 1.3 GHz |
+| GPU | Mali-G52 MC2 (dual-core) |
+| OS | Game OS **EmuELEC 4.3** |
+| RAM | DDRIII 512 MB |
+| Storage | 64/128 GB micro SD; TF slot to 256 GB |
+| Output | 4K UHD / 1080p / 720p |
+| Emulation | "Support 30+ kinds of emulators" |
+| Languages | Chinese/English/Japanese/Korean/Russian/French/German/Spanish, 30+ |
+| Wireless | 2.4 GHz rechargeable controllers ×2 |
+| Power | Micro USB 5 V/1 A |
+| Size | 105×33×20 mm, 348 g |
+| Colour | Red + Blue |
+
+None of the first four lines describes the card in our M68: Rockchip Cortex-A7,
+Buildroot + MiniGUI, 26 of 37 referenced cores present, and a boot script that
+prefers 720p (see [HDMI output mode](#hdmi-output-mode--why-it-is-720p50)). The
+`emuelec/` and `emulationstation/` directories in the rootfs are empty
+mountpoints inherited from whatever image this was forked from.
+
+So the M66 and M68 are not two revisions of one product — different CPU family,
+different OS, different interface. The M66 figures are the only ones the
+manufacturer publishes, and they do not describe this machine. The product
+photographs and the M66 specification above are manufacturer-published and were
+not independently verified.
+
 ## Boot path
 
 `inittab` → `/etc/init.d/rcS` → `S50ui start`:
@@ -206,6 +240,26 @@ CREATE TABLE tbl_total (ID INTEGER PRIMARY KEY, total INTEGER);
 
 `games_fav.db` is separate and trivial: `Users(ID INTEGER PRIMARY KEY, Name TEXT)`.
 Deleting it resets favourites (the UI does exactly that: `rm -rf /sdcard/game/games_fav.db`).
+
+### What the 21,520 rows actually are
+
+`tbl_game` holds 21,520 rows. A row is an index entry, not a promise that the
+file exists or that a core can run it, and a large share are duplicates and
+regional variants of the same titles. By `game_type`:
+
+| `game_type` | Rows | Core |
+|---|---|---|
+| 1 | 13,506 | NES |
+| 7 | 2,354 | |
+| 15 | 1,683 | |
+| 6 | 1,223 | |
+| 5 | 910 | |
+
+So roughly two thirds of the library is NES. The other tables are messier still:
+`tbl_tw` contains Korean and `tbl_ko` contains Simplified Chinese; `tbl_total`
+claims 1,329 against the actual 21,520 and is ignored by the UI; `tbl_video` has
+preview clips for the first 1,099 games and dangling IDs for the other 20,421.
+`tbl_match` holds pinyin-initial search keys (拳皇97 → `qh97QH97`).
 
 ### Column meanings (from disassembly, not guesswork)
 
@@ -414,18 +468,9 @@ that to the card and every tile is empty.
   launches. Unexamined — possibly the richer menu from a sibling model.
 - `/sdcard/w20c/minigui/retroarch_hdmi.cfg` is written by the button-remap screen;
   that path does not exist in this firmware's layout.
-
-## `site/`
-
-A standalone, offline HTML guide to the M66/M68 aimed at buyers rather than at
-this teardown. Everything about the M66 in it is transcribed from the
-manufacturer listing; the "Inside the M68" section is the only first-hand part
-and is derived from this repository.
-
-The useful conclusion it records: **SJGAM's own site has no M68.** The page the
-device is sold under describes the M66 — Amlogic-class, Mali-G52, EmuELEC 4.3 —
-and the firmware here is none of those things. The two names are not two
-revisions of one product.
+- `start_game.sh` is salted throughout with comments like
+  `# M1nO4pQ7rS2tU6vW9xY3zA5bC8dE1fG6hI2jK7mN0pQ9rS3tU5vW8xY2zA7bC4dE`,
+  apparently as watermarking.
 
 ## Overriding the launcher — `tools/make_test_launcher.sh`
 
@@ -444,6 +489,12 @@ The generated `test.sh` logs every boot to `/sdcard/test/test.log` (the only way
 to see anything without a serial cable), and a watchdog hands back to
 `/usr/bin/game` if the chosen target dies within 15s, so a failed experiment
 cannot leave a black screen with no way in. `-n` disables that.
+
+**On the risk of experimenting.** The rootfs is a read-only squashfs on its own
+partition and everything here is driven from the writable data partition, so the
+realistic failure is a black screen from an override that does not come up —
+recovered by putting the card in a PC and deleting `/sdcard/test`. Reflashing
+partitions is a different risk and is not something we have tested.
 
 It also undoes two things `S50ui` sets wrongly for us:
 

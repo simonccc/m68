@@ -3,7 +3,7 @@
 Notes and tooling from reading the SD card of an **SJGAM M68** retro TV game stick
 (build `M68 V1.0.0`, 22 January 2026).
 
-<img src="site/assets/product-2.jpg" alt="The SJGAM M68 game stick with its red and blue wireless controllers" width="520">
+<img src="assets/product-2.jpg" alt="The SJGAM M68 game stick with its red and blue wireless controllers" width="520">
 
 ---
 
@@ -50,7 +50,7 @@ webster-decrypted.sh          plaintext of /etc/webster
 games.db, games_scanf.db      the shipped SQLite databases (21,520 rows)
 games_fav.db                  favourites
 tools/                        see below
-site/                         the write-up, deployed to GitHub Pages
+assets/                       manufacturer product photograph
 squash/                       extracted root filesystem (gitignored — ~460 MB)
 ```
 
@@ -146,8 +146,8 @@ anyway. Delete `/sdcard/test` to go back.
 
 ## Licence
 
-The work in this repository is [MIT licensed](LICENSE) — `tools/`, `NOTES.md`,
-`README.md` and `site/index.html`.
+The work in this repository is [MIT licensed](LICENSE) — `tools/`, `NOTES.md`
+and `README.md`.
 
 The MIT grant does **not** extend to the material that came off the device or from
 the manufacturer, which is included for reference and remains their rights holders':
