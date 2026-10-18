@@ -46,6 +46,50 @@ restores stock behaviour. This is the safest way to experiment.
 Serial console is enabled: `console::respawn:/sbin/getty -L console 0 vt100`.
 `adbd` is also present in `/usr/bin`.
 
+## HDMI output mode — why it is 720p50
+
+`S50ui` runs `/usr/bin/drm-hotplug.sh` before the launcher. It picks the HDMI
+mode from a fixed preference list:
+
+```sh
+PREFERED_MODES="1280x720 1024x 1280x1024 800x600 1920x1080 [0-9]"
+```
+
+720p wins whenever the TV offers it; 1080p is fifth. The script reads
+`/sys/class/drm/card0-HDMI-A-1/modes`, which carries **resolution only**, and
+writes the match (`1280x720`) to `/tmp/drm_mode.cfg`.
+
+Two consumers read that file, both Rockchip-patched:
+
+- MiniGUI's `drmcon` engine (`libminigui_ths-3.2.so`, `drm_find_best_mode`):
+  `sscanf("%dx%d")`, then takes the **first** connector mode of that size
+- the vendor RetroArch 1.7.4 KMS context, the same way
+
+Neither looks at the refresh rate. 720p50 and 720p60 share a 74.25 MHz pixel
+clock, so the kernel's mode sort does not separate them and EDID order decides.
+A TV that lists VIC 19 (720p50) before VIC 4 (720p60) gets 50 Hz. The RetroArch
+configs' `video_refresh_rate = "60.000000"` does not change the mode — they run
+`video_windowed_fullscreen` on whatever mode is already set.
+
+The MiniGUI UI itself draws at `1280x720` (`hdmicfg/MiniGUI.cfg`,
+`[shadow] real_engine=drmcon`). `MINIGUI_DRM_FB_MODE=WxH` sets the framebuffer
+size independently of the output mode, and the VOP scales between them.
+
+### Trying 1080p
+
+`make_test_launcher.sh -m 1920x1080` writes a `test.sh` that rewrites
+`/tmp/drm_mode.cfg` before starting the launcher, sets
+`MINIGUI_DRM_FB_MODE=1280x720` so the UI is scaled rather than re-laid-out, and
+logs the TV's mode list (`modetest -c`) and the mode actually set
+(`modetest -p`) to `test.log`.
+
+**Result on one unit: it worked — the TV switched to 1080p — but there was some
+flicker and no visible improvement.** Games are low-resolution and the UI is
+drawn at 720p either way, so all 1080p adds is a second upscale. Stock 720p is
+the better setting. The same EDID-order caveat applies at 1080p (1080p50 and
+1080p60 also share a clock); choosing 60 Hz explicitly would need refresh-aware
+mode matching in `drmcon` and RetroArch, i.e. a rootfs change.
+
 ## Launching a game
 
 `game` shells out to `/usr/local/share/minigui/start_game.sh <game_type> "<appendcfg>" "<rompath>"`.
@@ -205,16 +249,21 @@ gameids have entries, the rest have dangling `video_id`. Harmless.
 ### Category counts come from the DB, not the disk
 
 ```sql
-SELECT rowid FROM tbl_game WHERE timer LIKE '<pattern>'
+SELECT rowid FROM tbl_game where timer like '/sdcard/game/<dirname>'
 ```
 
-so a category tile shows a count even when the ROM files are gone. The file is only
+(pattern built with `sprintf("/sdcard/game/%s", dirname)` at `0x1a1d4` and
+`0x1cb80`, run against `games_scanf.db`). There is **no wildcard**: `LIKE` here is
+a case-insensitive equality test, so a row belongs to a tile only if its `timer`
+is exactly `/sdcard/game/<dirname>`. The same rowid list is the tile's game list.
+
+So a category tile shows a count even when the ROM files are gone. The file is only
 touched at launch, which then logs `Game file not found: %s`. Conversely, a ROM on
 disk with no DB row is invisible.
 
-## Recreating the DB when you add content
+## What the launcher does with the databases at boot
 
-**You mostly don't have to.** `game` regenerates it on every boot. Startup sequence
+`game` never writes `games.db`; it works from a scratch copy. Startup sequence
 (`loadres()` at `0x16cd0`, run from a worker thread at `0x1bae8`):
 
 ```c
@@ -251,21 +300,33 @@ atari2600 atari5200 atari7800 cps cps1 cps2 fbneo fc gb gba gbc genesis gg
 mame md n64 ngp ngpc pce ps1 psp sfc sg-1000 sgfx sms snes wsc
 ```
 
-### So, the easy path
+### What `/sdcard/game1` is — and why it is not the way in
 
-Drop ROMs into **`/sdcard/game1/<system>/`** (the folder is created for you on first
-boot). On the next boot the launcher rebuilds `games_scanf.db` as
-`games.db + your files` and uses that. `games.db` is never modified. To undo, delete
-the files — `games_scanf.db` is overwritten from `games.db` every boot anyway.
+`scanf_game1()` builds each directory as `sprintf("/sdcard/game1/%s", subdir)` and
+passes that same string as `timer` in its `INSERT` (`0x17800` → `0x17adc` →
+`0x26a3c`). So every row it adds has `timer = '/sdcard/game1/<system>'`.
 
-Caveats of the easy path:
-- The title shown is the bare filename. No Chinese/Korean titles, no search keys.
-- `/sdcard/game1` is outside the 27-folder list for anything else — e.g. `atarilynx`,
-  `gameandwatch`, `msx2`, `pokemini`, `sega32x`, `psx`, `pcengine`, `gamegear`,
-  `megadrive`, `genh`, `segacd` are handled by `classify()` but never created or
-  scanned. Create them by hand and they will be scanned.
-- `game_type` is inferred, and the inference has bugs: `psx` → 43 (Atari Lynx!),
-  `sega32x` → 39 (pcsx chd), `pokemini` → 45 (game & watch), `gb`/`gbc`/`gba` all → 7.
+Category tiles come only from `readdir("/sdcard/game")`, and each tile selects
+`timer like '/sdcard/game/<dirname>'` — no wildcard. **No tile can ever match a
+`/sdcard/game1/...` row.** Read from the code, ROMs dropped into `game1` get a
+database row but are not listed under any category. (Earlier versions of these
+notes recommended `game1` as the easy path; that was wrong. Not yet re-checked on
+the device — they may still be reachable through search, which matches `tbl_en`
+by title.)
+
+`games_scanf.db` is a scratch file: overwritten from `games.db` on every boot,
+then extended by the scan. Keep `/sdcard/game1/*` empty and it is simply a copy of
+`games.db`. The launcher recreates the 27 `game1` subdirectories every boot, so
+leave them; just keep them empty.
+
+Other things `scanf_game1()` gets wrong, for the record:
+- It never scans folders outside its 27-entry list (`atarilynx`, `gameandwatch`,
+  `msx2`, `pokemini`, `sega32x`, `psx`, `pcengine`, `gamegear`, `megadrive`,
+  `genh`, `segacd`), although `classify()` knows them.
+- It does not add a `tbl_match` row, so search keys go out of step with the
+  rows it appends.
+- `game_type` inference has bugs: `n64` → 8 (core missing), `psx` → 43 (Atari
+  Lynx!), `sega32x` → 39 (pcsx chd), `pokemini` → 45 (game & watch).
 
 ### Folder → game_type, as the firmware actually classifies
 
@@ -298,11 +359,44 @@ Caveats of the easy path:
 | `gamegear`, `genesis`, `genh`, `megadrive`, `segacd` | any | 5 | genesisplusgx |
 | `psp` | any | 88 | PPSSPP |
 
-### The controlled path
+## Starting from scratch with your own ROM set
 
-When you want real titles, correct cores, search keys and preview videos, build
-`games.db` yourself — see `tools/build_gamesdb.py`. Put the result at
-`/sdcard/game/games.db` and leave `/sdcard/game1` empty.
+The menu is just *directories in `/sdcard/game`* plus *rows in `games.db` whose
+`timer` names those directories*. Both have to agree. To replace the stock
+library with your own selection:
+
+1. **On the PC, lay out a ROM tree**, one folder per system, using the folder
+   names in the table above (and ideally one of the 43 icon names, so the tile
+   has art):
+
+   ```
+   roms/snes/Super Mario World (USA).sfc
+   roms/md/Sonic The Hedgehog (USA, Europe).md
+   roms/cps/kof97.zip
+   ```
+
+2. **Check it:** `tools/build_gamesdb.py scan roms` lists each folder, its
+   `game_type` and core, and flags any core that is not on the card.
+
+3. **Build the database:** `tools/build_gamesdb.py build roms -o games.db` — no
+   `--base`, so none of the 21,520 stock rows are kept. Edit titles with the
+   `titles` command and `--titles` if filenames are not what you want shown.
+
+4. **Back up the card's `/sdcard/game`**, then empty it: remove every system
+   folder (each one would otherwise remain a tile, listing nothing) and the three
+   `.db` files.
+
+5. **Copy in** the contents of `roms/` (so you get `/sdcard/game/snes/...`), the
+   new `games.db`, and an empty `games_fav.db` from
+   `tools/make_blank_dbs.py OUT`. Favourites are stored by `gameid`; the stock
+   ones would point at the wrong games in a rebuilt database.
+   `games_scanf.db` is not needed — the launcher creates it at boot.
+
+6. **Leave `/sdcard/game1/*` empty.**
+
+Adding games later is the same loop: drop files into `roms/<system>/`, rebuild,
+copy `games.db` and the new files across. Rebuilding renumbers `gameid`s, so it
+also invalidates favourites.
 
 ## Loose ends
 
@@ -336,8 +430,11 @@ Writes `/sdcard/test/` onto a mounted card so `S50ui` runs our script instead of
 (or creating `/sdcard/test/DISABLE`) restores stock.
 
 ```
-make_test_launcher.sh [-t lvui|game|retroarch|shell] [-n] /Volumes/SDCARD
+make_test_launcher.sh [-t lvui|game|retroarch|shell] [-m WxH] [-n] /Volumes/SDCARD
 ```
+
+`-m 1920x1080` overrides the HDMI mode — see
+[HDMI output mode](#hdmi-output-mode--why-it-is-720p50).
 
 The generated `test.sh` logs every boot to `/sdcard/test/test.log` (the only way
 to see anything without a serial cable), and a watchdog hands back to

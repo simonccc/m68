@@ -224,6 +224,20 @@ fi</pre>
       <code>/sdcard/gmtest/test.so</code> with <code>/sdcard/gmtest/test.cfg</code>. Side-loading an emulator needs
       no firmware modification either.
     </div>
+
+    <h3>Why the picture is 720p at 50&nbsp;Hz</h3>
+    <p>Just before the launcher starts, <code>S50ui</code> runs <code>/usr/bin/drm-hotplug.sh</code>, which picks
+      the HDMI mode from a hard-coded preference list:</p>
+<pre>PREFERED_MODES="<span class="hl">1280x720</span> 1024x 1280x1024 800x600 1920x1080 [0-9]"</pre>
+    <p>720p beats 1080p whenever the TV offers both. The winner is written to <code>/tmp/drm_mode.cfg</code> as a
+      bare <code>1280x720</code>, and both MiniGUI and the vendor RetroArch take the <em>first</em> TV mode of that
+      size. 720p50 and 720p60 run at the same pixel clock, so nothing sorts them apart: the TV's EDID order decides,
+      and plenty of sets list 50&nbsp;Hz first. The 60&nbsp;Hz in every RetroArch config never gets a say.</p>
+    <p>It can be overridden from <code>test.sh</code> without touching the root filesystem —
+      <code>make_test_launcher.sh -m 1920x1080</code> rewrites the mode file before the launcher starts and keeps the
+      UI drawing at 720p so the layout survives. On our unit 1080p came up, with a little flicker and no visible
+      improvement: the menu is drawn at 720p and the games are far smaller still, so it only adds a second upscale.
+      We went back to stock.</p>
   </section>
 
   <section id="menu">
@@ -354,18 +368,39 @@ $EMU_RA -c $GAME_CFG --appendconfig "$2" \
       Chinese. <code>tbl_total</code> claims 1,329 rows against an actual 21,520 and is ignored by the UI.
       <code>tbl_video</code> has preview clips for the first 1,099 games and dangling IDs for the other 20,421.</p>
 
-    <h3>Adding games the easy way</h3>
-    <p>You mostly do not need to touch the database at all. Every boot, the launcher runs:</p>
-<pre>system("cp -a /sdcard/game/games.db /sdcard/game/games_scanf.db");</pre>
-    <p>…and then scans <code>/sdcard/game1/</code>, creating 27 system subdirectories if they are missing, and
-      appending a row for every ROM it finds. Drop files into
-      <code>/sdcard/game1/&lt;system&gt;/</code> and they appear on the next boot, with
-      <code>games.db</code> left untouched. The cost is that titles are bare filenames, and the core inference has
-      the bugs noted above.</p>
+    <h3>How a tile finds its games</h3>
+    <p>Each category tile runs one query against the database, built with
+      <code>sprintf("/sdcard/game/%s", dirname)</code>:</p>
+<pre>SELECT rowid FROM tbl_game where timer like '/sdcard/game/snes'</pre>
+    <p>There is no wildcard, so this is an exact, case-insensitive match. A game appears under a tile only if its
+      <code>timer</code> is precisely that tile's directory. Counts come from the same query and the database alone:
+      a tile will cheerfully report 540 Mega Drive games with none of the files present, and you only find out at
+      launch, when it prints <code>Game file not found</code>.</p>
 
-    <p>Category counts, incidentally, come from the database alone — <code>SELECT rowid FROM tbl_game WHERE timer
-      LIKE …</code>. A tile will cheerfully report 540 Mega Drive games with none of the files present; you only
-      find out at launch, when it prints <code>Game file not found</code>.</p>
+    <h3>The <code>game1</code> folder is a dead end</h3>
+    <p>Every boot, the launcher copies the database and then scans a second tree:</p>
+<pre>system("cp -a /sdcard/game/games.db /sdcard/game/games_scanf.db");
+scanf_game1();   <span class="c">// creates /sdcard/game1/&lt;27 systems&gt;, appends a row per file</span></pre>
+    <p>It looks like a drop-in folder for new ROMs, and we first wrote it up as one. It is not. Each row it appends
+      gets <code>timer = '/sdcard/game1/&lt;system&gt;'</code>, tiles only come from <code>/sdcard/game</code>, and
+      no tile's query can match a <code>game1</code> path. The scan dutifully adds the rows and nothing in the menu
+      lists them. Leave the folders empty; the launcher recreates them every boot regardless.</p>
+
+    <h3>Starting from scratch</h3>
+    <p>To replace the stock library with your own selection, the ROMs and the database both go under
+      <code>/sdcard/game</code>:</p>
+    <ol>
+      <li>On a PC, lay the ROMs out one folder per system using the firmware's names: <code>roms/snes/</code>,
+        <code>roms/md/</code>, <code>roms/cps/</code>…</li>
+      <li><code>build_gamesdb.py scan roms</code> to check every folder maps to a core that is on the card.</li>
+      <li><code>build_gamesdb.py build roms -o games.db</code> — without <code>--base</code>, so none of the stock
+        rows come along.</li>
+      <li>Back up <code>/sdcard/game</code>, then delete its system folders and its three <code>.db</code> files.
+        Any folder left behind is still a tile.</li>
+      <li>Copy the system folders in, then the new <code>games.db</code> and an empty <code>games_fav.db</code>
+        from <code>make_blank_dbs.py</code>. Favourites are stored by row number, which a rebuild changes.</li>
+      <li>Leave <code>/sdcard/game1</code> empty.</li>
+    </ol>
   </section>
 
   <section id="webster">
@@ -474,7 +509,7 @@ if (buf[0] != 'C' &amp;&amp; buf[1] != 'X')  system("poweroff");</pre>
     <h2><span class="num">08 — TOOLING</span>What's in the repo</h2>
 
     <p>Everything above is reproducible from the card. The repository carries the notes, the recovered plaintext
-      and three scripts:</p>
+      and four scripts:</p>
 
     <ul class="files">
       <li><code>NOTES.md</code>
@@ -487,7 +522,11 @@ if (buf[0] != 'C' &amp;&amp; buf[1] != 'X')  system("poweroff");</pre>
       <li><code>tools/make_test_launcher.sh</code>
         <span>Writes the <code>/sdcard/test/</code> override onto a card. Logs each boot to the card, and falls back
           to the stock launcher if the target dies within 15 seconds, so a failed experiment cannot leave a black
-          screen with no way back in.</span></li>
+          screen with no way back in. <code>-m 1920x1080</code> forces the HDMI mode and logs what the TV
+          offers.</span></li>
+      <li><code>tools/make_blank_dbs.py</code>
+        <span>Writes an empty <code>games.db</code> and <code>games_fav.db</code> with the stock schema — a clean
+          favourites file for after a rebuild.</span></li>
       <li><code>tools/webster.py</code>
         <span>Decrypts and re-encrypts <code>/etc/webster</code>, prints the derivation for any root filesystem, and
           recovers the parameters from scratch without <code>/proc/version</code>.</span></li>
@@ -540,6 +579,11 @@ if (buf[0] != 'C' &amp;&amp; buf[1] != 'X')  system("poweroff");</pre>
       <p>There are menu icons for Dreamcast and Naomi and no emulator for either. N64 works only through the
         standalone <code>n2626</code> emulator at <code>game_type 66</code>; the libretro N64 core the scanner
         assigns is not on the card. PlayStation 1 works, via <code>pcsx_rearmed</code>. PSP works, via PPSSPP.</p>
+    </details>
+    <details>
+      <summary>Why only 720p, and why 50&nbsp;Hz?</summary>
+      <p>A boot script prefers 1280x720 and matches the mode on size alone, so the refresh rate is whichever the TV
+        lists first — see section 02. 1080p can be forced; on our unit it flickered a little and looked no better.</p>
     </details>
     <details>
       <summary>Is this the same as the M66?</summary>

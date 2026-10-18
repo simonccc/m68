@@ -7,11 +7,14 @@
 # rootfs is touched, so deleting the directory restores stock behaviour.
 #
 # Usage:
-#   make_test_launcher.sh [-t TARGET] [-n] DEST
+#   make_test_launcher.sh [-t TARGET] [-m WxH] [-n] DEST
 #
 #   DEST     mounted data partition of the card (e.g. /Volumes/SDCARD),
 #            or any staging directory to copy over later
 #   -t       lvui | game | retroarch | shell   (default: lvui)
+#   -m       HDMI output mode, e.g. 1920x1080 (default: leave the stock
+#            choice, which is 1280x720). The UI keeps drawing at 1280x720
+#            and is scaled up; RetroArch renders at the output size.
 #   -n       no watchdog: do not fall back to the stock launcher
 #
 # Targets:
@@ -26,12 +29,14 @@ set -eu
 
 TARGET=lvui
 WATCHDOG=1
+MODE=
 
 usage() { sed -n '2,/^set -eu/p' "$0" | sed 's/^# \{0,1\}//;$d'; exit "${1:-0}"; }
 
-while getopts "t:nh" opt; do
+while getopts "t:m:nh" opt; do
     case "$opt" in
         t) TARGET=$OPTARG ;;
+        m) MODE=$OPTARG ;;
         n) WATCHDOG=0 ;;
         h) usage 0 ;;
         *) usage 2 ;;
@@ -45,6 +50,11 @@ DEST=$1
 case "$TARGET" in
     lvui|game|retroarch|shell) ;;
     *) echo "unknown target: $TARGET" >&2; exit 2 ;;
+esac
+
+case "$MODE" in
+    ''|[0-9]*x[0-9]*) ;;
+    *) echo "bad mode '$MODE', want WxH like 1920x1080" >&2; exit 2 ;;
 esac
 
 [ -d "$DEST" ] || { echo "no such directory: $DEST" >&2; exit 1; }
@@ -67,6 +77,7 @@ cat > "$TESTDIR/test.sh" <<'DEVICE_SCRIPT'
 #
 TARGET=@TARGET@
 WATCHDOG=@WATCHDOG@
+MODE=@MODE@
 
 TESTDIR=/sdcard/test
 LOG=$TESTDIR/test.log
@@ -102,6 +113,31 @@ fi
 # below to values we do not want.
 export LD_LIBRARY_PATH="/sdcard/test/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 unset MG_CFG_PATH
+
+# HDMI mode. drm-hotplug.sh (run by S50ui) wrote the first match from
+#   PREFERED_MODES="1280x720 1024x 1280x1024 800x600 1920x1080 [0-9]"
+# to /tmp/drm_mode.cfg. MiniGUI's drmcon and the vendor RetroArch both read
+# that file, as WxH only, and take the FIRST connector mode of that size --
+# so the refresh rate is whatever the TV's EDID lists first (720p50 and
+# 720p60 have the same pixel clock, so the kernel sort does not split them).
+# Log what the TV offers, in order, so the refresh rate can be explained.
+HDMI=/sys/class/drm/card0-HDMI-A-1
+cat "$HDMI/modes"
+modetest -M rockchip -c | sed -n '/HDMI/,/props:/p'
+cat /tmp/drm_mode.cfg
+if [ -n "$MODE" ]; then
+    if grep -q "^$MODE" "$HDMI/modes"; then
+        echo "$MODE" > /tmp/drm_mode.cfg
+        # Keep the UI's framebuffer at the size MiniGUI.cfg draws at; the VOP
+        # scales it to the output mode.
+        export MINIGUI_DRM_FB_MODE=1280x720
+        export MINIGUI_DRM_DEBUG=1
+    else
+        echo "TV does not offer $MODE, keeping $(cat /tmp/drm_mode.cfg)"
+    fi
+fi
+# Record the mode actually set (with refresh) once the launcher is up.
+( sleep 8; modetest -M rockchip -p | sed -n '/^CRTCs:/,/^Planes:/p' ) &
 
 # Input routing. start_game.sh uses 4 while RetroArch has the pad and 1 when a
 # UI does; 6 is PPSSPP. The node is absent on some units, hence the guard.
@@ -182,6 +218,7 @@ DEVICE_SCRIPT
 sed -i.bak \
     -e "s|^TARGET=@TARGET@|TARGET=$TARGET|" \
     -e "s|^WATCHDOG=@WATCHDOG@|WATCHDOG=$WATCHDOG|" \
+    -e "s|^MODE=@MODE@|MODE=$MODE|" \
     "$TESTDIR/test.sh"
 rm -f "$TESTDIR/test.sh.bak"
 chmod 755 "$TESTDIR/test.sh"
@@ -191,6 +228,7 @@ M68 launcher override — generated $(date -u '+%Y-%m-%d %H:%M UTC')
 
 target: $TARGET
 watchdog: $WATCHDOG
+mode: ${MODE:-stock}
 
 /etc/init.d/S50ui runs test.sh instead of /usr/bin/game because this directory
 exists. Output lands in test.log on this card; read it there after a boot.
@@ -206,7 +244,7 @@ EOF
 echo "wrote $TESTDIR/"
 ls -l "$TESTDIR"
 echo
-echo "target: $TARGET, watchdog: $WATCHDOG"
+echo "target: $TARGET, watchdog: $WATCHDOG, mode: ${MODE:-stock}"
 case "$TARGET" in
 lvui)
 cat <<'EOF'
