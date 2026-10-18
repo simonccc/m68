@@ -92,8 +92,9 @@ under `/sdcard/game`:
 2. `tools/build_gamesdb.py scan roms` — check every folder maps to a core that ships.
 3. `tools/build_gamesdb.py build roms -o games.db` — no `--base`, so no stock rows.
 4. Back up the card's `/sdcard/game`, then delete its system folders and `.db` files.
-5. Copy `roms/*` into `/sdcard/game/`, plus the new `games.db` and an empty
-   `games_fav.db` (`tools/make_blank_dbs.py`). `games_scanf.db` is made at boot.
+5. Copy `roms/*` into `/sdcard/game/`, plus the `games.db` from step 3 — check
+   `sqlite3 games.db "select count(*) from tbl_game"` isn't 0 first. Don't copy
+   `games_fav.db` or `games_scanf.db`; the launcher creates both at boot.
 6. Leave `/sdcard/game1/*` empty.
 
 **What `game1` is:** every boot the launcher copies `games.db` to `games_scanf.db`
@@ -109,8 +110,9 @@ them at boot).
 tools/make_blank_dbs.py OUTDIR      # OUTDIR/games.db, OUTDIR/games_fav.db; --force to overwrite
 ```
 
-Same schema as stock, no rows. Use the empty `games_fav.db` whenever you rebuild
-`games.db`: favourites are stored by `gameid`, which a rebuild renumbers.
+Same schema as stock, no rows. Not needed for setting up a card — the launcher
+creates `games_fav.db` itself — and its `games.db` is **empty**: copied to a card,
+every tile shows nothing.
 
 ### `tools/make_test_launcher.sh` — replace the launcher
 

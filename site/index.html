@@ -397,8 +397,9 @@ scanf_game1();   <span class="c">// creates /sdcard/game1/&lt;27 systems&gt;, ap
         rows come along.</li>
       <li>Back up <code>/sdcard/game</code>, then delete its system folders and its three <code>.db</code> files.
         Any folder left behind is still a tile.</li>
-      <li>Copy the system folders in, then the new <code>games.db</code> and an empty <code>games_fav.db</code>
-        from <code>make_blank_dbs.py</code>. Favourites are stored by row number, which a rebuild changes.</li>
+      <li>Copy the system folders in, then the <code>games.db</code> you just built. Do not copy a
+        <code>games_fav.db</code>: the launcher creates a fresh one at boot, and the old one stores favourites by row
+        number, which a rebuild changes.</li>
       <li>Leave <code>/sdcard/game1</code> empty.</li>
     </ol>
   </section>
@@ -525,8 +526,8 @@ if (buf[0] != 'C' &amp;&amp; buf[1] != 'X')  system("poweroff");</pre>
           screen with no way back in. <code>-m 1920x1080</code> forces the HDMI mode and logs what the TV
           offers.</span></li>
       <li><code>tools/make_blank_dbs.py</code>
-        <span>Writes an empty <code>games.db</code> and <code>games_fav.db</code> with the stock schema — a clean
-          favourites file for after a rebuild.</span></li>
+        <span>Writes an empty <code>games.db</code> and <code>games_fav.db</code> with the stock schema. Not for
+          setting up a card: an empty <code>games.db</code> gives a menu with nothing in it.</span></li>
       <li><code>tools/webster.py</code>
         <span>Decrypts and re-encrypts <code>/etc/webster</code>, prints the derivation for any root filesystem, and
           recovers the parameters from scratch without <code>/proc/version</code>.</span></li>

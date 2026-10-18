@@ -386,17 +386,21 @@ library with your own selection:
    folder (each one would otherwise remain a tile, listing nothing) and the three
    `.db` files.
 
-5. **Copy in** the contents of `roms/` (so you get `/sdcard/game/snes/...`), the
-   new `games.db`, and an empty `games_fav.db` from
-   `tools/make_blank_dbs.py OUT`. Favourites are stored by `gameid`; the stock
-   ones would point at the wrong games in a rebuilt database.
-   `games_scanf.db` is not needed — the launcher creates it at boot.
+5. **Copy in** the contents of `roms/` (so you get `/sdcard/game/snes/...`) and
+   the `games.db` from step 3 — check it first:
+   `sqlite3 games.db "select count(*) from tbl_game"` must not be 0. Do **not**
+   copy a `games_fav.db` or `games_scanf.db`: the launcher creates both at boot
+   (`CREATE TABLE IF NOT EXISTS Users …`). Deleting the old `games_fav.db` matters
+   — favourites are stored by `gameid` and would point at the wrong games.
 
 6. **Leave `/sdcard/game1/*` empty.**
 
 Adding games later is the same loop: drop files into `roms/<system>/`, rebuild,
-copy `games.db` and the new files across. Rebuilding renumbers `gameid`s, so it
-also invalidates favourites.
+copy `games.db` and the new files across. Rebuilding renumbers `gameid`s, so
+delete `games_fav.db` too.
+
+`tools/make_blank_dbs.py` is not part of this. Its `games.db` has no rows — copy
+that to the card and every tile is empty.
 
 ## Loose ends
 
