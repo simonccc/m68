@@ -157,6 +157,23 @@ from its launcher binary; any M66 specification and the product photographs are
 manufacturer-published and not independently verified. Other M68 batches may differ —
 corrections welcome.
 
-Independent research, not affiliated with or endorsed by SJGAM. Product images and
-trademarks belong to their owners; no reuse licence was established. No ROMs,
-copyrighted game data or firmware images are distributed here.
+Independent research, not affiliated with or endorsed by SJGAM. No ROMs, copyrighted
+game data or firmware images are distributed here.
+
+## Licence
+
+The work in this repository is [MIT licensed](LICENSE) — `tools/`, `NOTES.md`,
+`README.md` and `site/index.html`.
+
+The MIT grant does **not** extend to the material that came off the device or from
+the manufacturer, which is included for reference and remains their rights holders':
+
+| Path | What it is |
+|---|---|
+| `games.db`, `games_scanf.db`, `games_fav.db` | databases from the device |
+| `webster-decrypted.sh` | decrypted vendor script |
+| `site/assets/*.jpg` | manufacturer product photographs |
+| `site/research/manufacturer-source.html` | snapshot of the SJGAM listing |
+
+No reuse licence was established for any of those. Attribution does not grant
+permission for redistribution.
