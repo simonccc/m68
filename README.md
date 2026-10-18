@@ -1,18 +1,21 @@
 # M68 mini retro console
 
-Notes and tooling from reading the SD card of an **SJGAM M68** retro TV game stick
-(build `M68 V1.0.0`, 22 January 2026).
+Notes and tooling from reading the SD card of a retro TV game stick sold as an
+**SJGAM M68** (build `M68 V1.0.0`, 22 January 2026) — a clone of the SJGAM M66.
 
-<img src="assets/product-2.jpg" alt="The SJGAM M68 game stick with its red and blue wireless controllers" width="520">
+<img src="assets/product-2.jpg" alt="The game stick with its red and blue wireless controllers" width="520">
 
 ---
 
 ## History
 
-It looks like a clone of SJGAM's **M66** which is
-Amlogic-class SoC with Mali-G52 graphics running **EmuELEC 4.3**. 
+**It is not an M66.** It is a clone of one: the M66's casing, photographs and
+product page around a cheaper board running entirely different software. SJGAM's
+catalogue has no M68 in it, because the M68 is not one of their products — so the
+specification on the page it is sold under (Amlogic-class SoC, Mali-G52, EmuELEC
+4.3) is the specification of the device being copied. Set side by side:
 
-| | (M66) | (M68) |
+| | M66, as listed | This unit |
 |---|---|---|
 | CPU | Amlogic-class, Mali-G52 MC2 | **Rockchip, 32-bit ARM Cortex-A7** |
 | OS | EmuELEC 4.3 | **Buildroot 2018.02-rc3**, BusyBox init |
@@ -20,9 +23,9 @@ Amlogic-class SoC with Mali-G52 graphics running **EmuELEC 4.3**.
 | Emulation | "30+ emulators" | RetroArch, **26 of 37** referenced cores present |
 
 The `emuelec/` and `emulationstation/` directories in the root filesystem are empty
-mount points.
+mount points — the layout copied over without the software behind it.
 
-Other findings:
+Nothing published describes this board, so the rest of this came off the card:
 
 - **The menu is a directory listing.** Categories come from `readdir("/sdcard/game")`,
   capped at 50. `mkdir` is the whole procedure for adding a system.
@@ -50,7 +53,7 @@ webster-decrypted.sh          plaintext of /etc/webster
 games.db, games_scanf.db      the shipped SQLite databases (21,520 rows)
 games_fav.db                  favourites
 tools/                        see below
-assets/                       manufacturer product photograph
+assets/                       product photograph from the M66 listing
 squash/                       extracted root filesystem (gitignored — ~460 MB)
 ```
 
@@ -150,7 +153,7 @@ The work in this repository is [MIT licensed](LICENSE) — `tools/`, `NOTES.md`
 and `README.md`.
 
 The MIT grant does **not** extend to the material that came off the device or from
-the manufacturer, which is included for reference and remains their rights holders':
+the SJGAM listing, which is included for reference and remains its rights holders':
 
 No reuse licence was established for any of those. Attribution does not grant
 permission for redistribution.

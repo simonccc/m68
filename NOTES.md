@@ -1,10 +1,14 @@
-# SJGAM M68 — firmware notes
+# M68 — firmware notes
+
+A TV game stick sold as an "SJGAM M68", which is a clone of the SJGAM M66 and
+shares nothing with it but the casing and the photographs.
 
 Device string: `/etc/version` → `M68 / V1.0.0 / 2026-01-22 14:50`
 
 ## Platform
 
-Not EmuELEC/Amlogic (the vendor page for the M66 is misleading). This is:
+Not EmuELEC/Amlogic. That is the M66 — the product this device is a clone of
+rather than an example of (see below). What is actually here:
 
 | | |
 |---|---|
@@ -19,12 +23,15 @@ Not EmuELEC/Amlogic (the vendor page for the M66 is misleading). This is:
 Partition 4 = squashfs rootfs (read-only). `/sdcard` is a separate partition
 mounted at boot; everything user-facing lives there.
 
-## The manufacturer listing — what the box claims
+## The M66 — the device this one copies
 
-**SJGAM's own site has no M68.** Enumerating every product ID on it returns
-M5, M8, M9, M15, M17, M18, M26, M27, M28, M30, M31, M66 and M88. The page this
-device is sold under is the **M66**, "PS1 TV Video Game Stick", whose published
-parameters are:
+This is not an M66 with a surprising firmware. It is a clone: the M66's casing,
+photographs and product page around a different, cheaper board.
+
+SJGAM's catalogue has no M68 in it — enumerating every product ID returns M5, M8,
+M9, M15, M17, M18, M26, M27, M28, M30, M31, M66 and M88 — because the M68 is not
+one of their products. The listing it is sold under is the M66, "PS1 TV Video Game
+Stick", whose published parameters are:
 
 | | Listed for the M66 |
 |---|---|
@@ -41,17 +48,19 @@ parameters are:
 | Size | 105×33×20 mm, 348 g |
 | Colour | Red + Blue |
 
-None of the first four lines describes the card in our M68: Rockchip Cortex-A7,
-Buildroot + MiniGUI, 26 of 37 referenced cores present, and a boot script that
-prefers 720p (see [HDMI output mode](#hdmi-output-mode--why-it-is-720p50)). The
-`emuelec/` and `emulationstation/` directories in the rootfs are empty
-mountpoints inherited from whatever image this was forked from.
+That table describes the M66. The card in this unit is a Rockchip Cortex-A7
+running Buildroot and MiniGUI, with 26 of 37 referenced cores present and a boot
+script that prefers 720p (see
+[HDMI output mode](#hdmi-output-mode--why-it-is-720p50)). The `emuelec/` and
+`emulationstation/` directories in the rootfs are empty mountpoints: the layout
+copied across without the software that would fill it.
 
-So the M66 and M68 are not two revisions of one product — different CPU family,
-different OS, different interface. The M66 figures are the only ones the
-manufacturer publishes, and they do not describe this machine. The product
-photographs and the M66 specification above are manufacturer-published and were
-not independently verified.
+None of which is a contradiction to resolve — it is simply the difference between
+two products, one imitating the other. The M66 figures are here because they are
+the only published specification anyone shopping for this device will see, and so
+that nobody mistakes them for measurements of this one. They and the product
+photographs come from the SJGAM listing and were not independently verified.
+Who actually built this unit, we do not know.
 
 ## Boot path
 
