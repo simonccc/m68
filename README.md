@@ -9,7 +9,7 @@ Notes and tooling from reading the SD card of an **SJGAM M68** retro TV game sti
 
 ## History
 
-It looks like a clone of SJGAM's **M66** product page, which specifies an
+It looks like a clone of SJGAM's **M66** which is
 Amlogic-class SoC with Mali-G52 graphics running **EmuELEC 4.3**. 
 
 | | (M66) | (M68) |
