@@ -5,3 +5,5 @@ squash/
 *.img
 *.sqfs
 .DS_Store
+__pycache__/
+tools/games.db
