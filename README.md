@@ -1,31 +1,13 @@
 # M68 mini retro console
 
 Notes and tooling from reading the SD card of a retro TV game stick sold as an
-**SJGAM M68** (build `M68 V1.0.0`, 22 January 2026) — a clone of the SJGAM M66.
+**M68** (build `M68 V1.0.0`, 22 January 2026) — a clone of the SJGAM M66.
 
-<img src="assets/product-2.jpg" alt="The game stick with its red and blue wireless controllers" width="520">
 
 ---
 
-## History
+## Notes
 
-**It is not an M66.** It is a clone of one: the M66's casing, photographs and
-product page around a cheaper board running entirely different software. SJGAM's
-catalogue has no M68 in it, because the M68 is not one of their products — so the
-specification on the page it is sold under (Amlogic-class SoC, Mali-G52, EmuELEC
-4.3) is the specification of the device being copied. Set side by side:
-
-| | M66, as listed | This unit |
-|---|---|---|
-| CPU | Amlogic-class, Mali-G52 MC2 | **Rockchip, 32-bit ARM Cortex-A7** |
-| OS | EmuELEC 4.3 | **Buildroot 2018.02-rc3**, BusyBox init |
-| Interface | (EmulationStation) | **MiniGUI**, `/usr/bin/game` |
-| Emulation | "30+ emulators" | RetroArch, **26 of 37** referenced cores present |
-
-The `emuelec/` and `emulationstation/` directories in the root filesystem are empty
-mount points — the layout copied over without the software behind it.
-
-Nothing published describes this board, so the rest of this came off the card:
 
 - **The menu is a directory listing.** Categories come from `readdir("/sdcard/game")`,
   capped at 50. `mkdir` is the whole procedure for adding a system.
@@ -50,11 +32,8 @@ Nothing published describes this board, so the rest of this came off the card:
 ```
 NOTES.md                      the full teardown: boot path, menu, schema, crypto, addresses
 webster-decrypted.sh          plaintext of /etc/webster
-games.db, games_scanf.db      the shipped SQLite databases (21,520 rows)
-games_fav.db                  favourites
 tools/                        see below
 assets/                       product photograph from the M66 listing
-squash/                       extracted root filesystem (gitignored — ~460 MB)
 ```
 
 ## Tools
@@ -66,16 +45,6 @@ tools/build_gamesdb.py scan   ROMDIR                        # dry run, flags mis
 tools/build_gamesdb.py build  ROMDIR -o games.db --base games.db
 tools/build_gamesdb.py titles games.db -o titles.csv        # edit, feed back with --titles
 ```
-
-`ROMDIR` holds one directory per system (`ROMDIR/snes/Foo.zip`). Rebuilding with
-`--base` reproduces all 21,520 stock rows byte-identically before appending.
-
-> [!WARNING]
-> The launcher loads titles with a bare `SELECT en_title FROM tbl_en` — no `WHERE`,
-> no `ORDER BY` — and indexes the result **positionally** against `tbl_game`. The
-> `en_id`/`zh_id`/`ko_id`/`tw_id` columns are never joined on. Every title table must
-> have the same row count as `tbl_game`, in the same order, or every title after the
-> gap shifts onto the wrong game. The script asserts this before writing.
 
 #### Starting from scratch with your own ROMs
 
